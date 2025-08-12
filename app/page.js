@@ -1,47 +1,113 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ChatUI from "./components/ChatUI";
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
-  const handleSendMessage = async (newMessage, setMessages) => {
+  const [chats, setChats] = useState([]);
+  const [activeChatId, setActiveChatId] = useState(null);
+
+  // Load chats from local storage on initial render
+  useEffect(() => {
+    const savedChats = localStorage.getItem("chatHistory");
+    if (savedChats) {
+      setChats(JSON.parse(savedChats));
+    }
+  }, []);
+
+  // Save chats to local storage whenever the chats state changes
+  useEffect(() => {
+    localStorage.setItem("chatHistory", JSON.stringify(chats));
+  }, [chats]);
+
+  const handleSendMessage = async (newMessage, messages) => {
     setLoading(true);
 
-    try {
-      const formData = new FormData();
-      formData.append("message", newMessage.content);
-      if (newMessage.file) {
-        formData.append("file", newMessage.file);
-      }
+    let updatedMessages = [...messages, newMessage];
 
+    try {
       const res = await fetch("/api/chat", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ messages: updatedMessages }),
       });
 
       const data = await res.json();
 
       if (data.reply) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: data.reply },
-        ]);
+        const assistantMessage = { role: "assistant", content: data.reply };
+        updatedMessages = [...updatedMessages, assistantMessage];
+
+        // Update the state for the active chat
+        setChats((prevChats) => {
+          // If it's a new chat, create a new one
+          if (!activeChatId) {
+            const newId = Date.now();
+            const newChat = {
+              id: newId,
+              title: createChatTitle(
+                newMessage.content ||
+                  (newMessage.fileName ? newMessage.fileName : "New Chat")
+              ),
+              messages: updatedMessages,
+            };
+            setActiveChatId(newId);
+            return [...prevChats, newChat];
+          } else {
+            // Otherwise, update the existing chat
+            return prevChats.map((chat) =>
+              chat.id === activeChatId
+                ? { ...chat, messages: updatedMessages }
+                : chat
+            );
+          }
+        });
       }
     } catch (err) {
       console.error("Error sending message:", err);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "⚠️ Error: Could not get a reply." },
-      ]);
+      // Update the state with an error message
+      setChats((prevChats) => {
+        return prevChats.map((chat) =>
+          chat.id === activeChatId
+            ? {
+                ...chat,
+                messages: [
+                  ...messages,
+                  {
+                    role: "assistant",
+                    content: "⚠️ Error: Could not get a reply.",
+                  },
+                ],
+              }
+            : chat
+        );
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  const createChatTitle = (text) => {
+    const words = text.split(" ").slice(0, 5).join(" ");
+    return words.length > 0 ? words + "..." : "New Chat";
+  };
+
+  const activeMessages =
+    chats.find((chat) => chat.id === activeChatId)?.messages || [];
+
   return (
     <div className="h-screen">
-      <ChatUI onSendMessage={handleSendMessage} />
+      <ChatUI
+        onSendMessage={handleSendMessage}
+        chats={chats}
+        setChats={setChats}
+        activeChatId={activeChatId}
+        setActiveChatId={setActiveChatId}
+        messages={activeMessages}
+      />
       {loading && (
         <div className="absolute bottom-20 left-1/2 -translate-x-1/2 text-gray-400 text-sm">
           AI is thinking...

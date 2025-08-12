@@ -90,72 +90,72 @@ const MenuIcon = () => (
   </svg>
 );
 
-export default function App({ onSendMessage }) {
+export default function App({
+  onSendMessage,
+  chats,
+  setChats,
+  activeChatId,
+  setActiveChatId,
+  messages,
+}) {
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [chats, setChats] = useState([]);
-  const [activeChatId, setActiveChatId] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Handle setting active chat messages when a chat is selected
-  useEffect(() => {
-    if (activeChatId) {
-      const selectedChat = chats.find((chat) => chat.id === activeChatId);
-      setMessages(selectedChat ? selectedChat.messages : []);
-    } else {
-      setMessages([]);
-    }
-  }, [activeChatId, chats]);
-
-  const createChatTitle = (text) => {
-    const words = text.split(" ").slice(0, 5).join(" ");
-    return words.length > 0 ? words + "..." : "New Chat";
-  };
-
   const handleSend = () => {
     if (!input.trim() && !selectedFile) return;
 
-    const newMessage = {
-      role: "user",
-      content: input,
-      file: selectedFile || null,
-    };
-
-    let updatedMessages = [...messages, newMessage];
-
-    if (!activeChatId) {
-      const newId = Date.now();
-      const newChat = {
-        id: newId,
-        title: createChatTitle(
-          input || (selectedFile ? selectedFile.name : "New Chat")
-        ),
-        messages: updatedMessages,
-      };
-      setChats((prev) => [...prev, newChat]);
-      setActiveChatId(newId);
-    } else {
-      setChats((prev) =>
-        prev.map((chat) =>
+    if (input.trim().toLowerCase() === "save chat") {
+      // The saving is now handled by the parent component, so we just add a message
+      // and let the state update propagate down.
+      setChats((prevChats) =>
+        prevChats.map((chat) =>
           chat.id === activeChatId
-            ? { ...chat, messages: updatedMessages }
+            ? {
+                ...chat,
+                messages: [
+                  ...chat.messages,
+                  {
+                    role: "assistant",
+                    content:
+                      "Your chat has been saved. You can find it in the sidebar.",
+                  },
+                ],
+              }
             : chat
         )
       );
+      setInput("");
+      return;
     }
 
-    setMessages(updatedMessages);
-    onSendMessage(newMessage, setMessages);
-    setInput("");
-    setSelectedFile(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const fileData = selectedFile ? reader.result : null;
+      const newMessage = {
+        role: "user",
+        content: input,
+        file: fileData,
+        fileName: selectedFile ? selectedFile.name : null,
+      };
+
+      // Call the parent's handler to send the message
+      onSendMessage(newMessage, messages);
+      setInput("");
+      setSelectedFile(null);
+    };
+
+    if (selectedFile) {
+      reader.readAsDataURL(selectedFile);
+    } else {
+      reader.onload(); // Trigger the logic immediately if no file
+    }
   };
 
   const handleKeyPress = (e) => {
@@ -167,13 +167,12 @@ export default function App({ onSendMessage }) {
 
   const handleSelectChat = (id) => {
     setActiveChatId(id);
-    setIsSidebarOpen(false); // Close sidebar on mobile after selecting a chat
+    setIsSidebarOpen(false);
   };
 
   const handleDeleteChat = (id) => {
     setChats((prev) => prev.filter((chat) => chat.id !== id));
     if (id === activeChatId) {
-      setMessages([]);
       setActiveChatId(null);
     }
   };
@@ -186,7 +185,7 @@ export default function App({ onSendMessage }) {
 
   const handleNewChat = () => {
     setActiveChatId(null);
-    setIsSidebarOpen(false); // Close sidebar on mobile
+    setIsSidebarOpen(false);
   };
 
   return (
@@ -285,15 +284,15 @@ export default function App({ onSendMessage }) {
                   {msg.file && (
                     <div className="mt-2 text-xs">
                       <a
-                        href={URL.createObjectURL(msg.file)}
-                        download={msg.file.name}
+                        href={msg.file}
+                        download={msg.fileName}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-yellow-300 underline hover:text-yellow-400 transition-colors"
                       >
                         <span className="flex items-center space-x-1">
                           <PaperclipIcon />
-                          <span>{msg.file.name}</span>
+                          <span>{msg.fileName}</span>
                         </span>
                       </a>
                     </div>
