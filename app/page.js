@@ -7,8 +7,33 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
+  const [savedChats, setSavedChats] = useState([]);
 
-  // Load chats from local storage on initial render
+  useEffect(() => {
+    async function fetchChats() {
+      const res = await fetch("/api/list-chats");
+      const data = await res.json();
+      if (!data.error) {
+        setSavedChats(data);
+      }
+    }
+    fetchChats();
+  }, []);
+
+  async function loadChat(chatId) {
+    const res = await fetch(`/api/load-chat?id=${chatId}`);
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+    } else {
+      setChats((prev) => {
+        const filtered = prev.filter((c) => c.id !== data.id);
+        return [...filtered, data];
+      });
+      setActiveChatId(data.id);
+    }
+  }
+
   useEffect(() => {
     const savedChats = localStorage.getItem("chatHistory");
     if (savedChats) {
@@ -100,6 +125,8 @@ export default function Home() {
 
   return (
     <div className="h-screen">
+      {/* Sidebar */}
+
       <ChatUI
         onSendMessage={handleSendMessage}
         chats={chats}
@@ -107,6 +134,7 @@ export default function Home() {
         activeChatId={activeChatId}
         setActiveChatId={setActiveChatId}
         messages={activeMessages}
+        savedChats={savedChats}
       />
       {loading && (
         <div className="absolute bottom-20 left-1/2 -translate-x-1/2 text-gray-400 text-sm">

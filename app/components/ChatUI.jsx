@@ -97,6 +97,7 @@ export default function App({
   activeChatId,
   setActiveChatId,
   messages,
+  savedChats,
 }) {
   const [input, setInput] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
@@ -107,6 +108,20 @@ export default function App({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  async function loadChat(chatId) {
+    const res = await fetch(`/api/load-chat?id=${chatId}`);
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+    } else {
+      setChats((prev) => {
+        const filtered = prev.filter((c) => c.id !== data.id);
+        return [...filtered, data];
+      });
+      setActiveChatId(data.id);
+    }
+  }
 
   const handleSend = () => {
     if (!input.trim() && !selectedFile) return;
@@ -204,6 +219,22 @@ export default function App({
             <PlusIcon />
             <span>New Chat</span>
           </button>
+        </div>
+        <div className="w-64 bg-purple-800 mx-2 text-white p-4 overflow-y-auto">
+          <h2 className="text-lg font-bold mb-4">💾 Saved Chats</h2>
+          {savedChats.length === 0 && (
+            <p className="text-sm text-gray-400">No saved chats yet</p>
+          )}
+          {savedChats.map((chat) => (
+            <button
+              key={chat.id}
+              onClick={() => loadChat(chat.id)}
+              className="block w-full text-left px-2 py-1 mb-1 rounded hover:bg-gray-700"
+            >
+              <div className="font-medium truncate">{chat.title}</div>
+              <div className="text-xs text-gray-400">{chat.date}</div>
+            </button>
+          ))}
         </div>
         <div className="flex-1 overflow-y-auto pt-2">
           {chats.map((chat) => (
@@ -354,6 +385,26 @@ export default function App({
               aria-label="Send message"
             >
               <SendIcon />
+            </button>
+
+            <button
+              onClick={() => {
+                const activeChat = chats.find((c) => c.id === activeChatId);
+                if (activeChat) {
+                  fetch("/api/save-chat", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ chat: activeChat }),
+                  })
+                    .then((res) => res.json())
+                    .then((data) => {
+                      alert(data.message || "Saved!");
+                    });
+                }
+              }}
+              className="ml-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-xl"
+            >
+              💾 Save Chat
             </button>
           </div>
         </div>
