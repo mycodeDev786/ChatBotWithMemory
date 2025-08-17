@@ -20,19 +20,6 @@ export default function Home() {
     fetchChats();
   }, []);
 
-  async function loadChat(chatId) {
-    const res = await fetch(`/api/load-chat?id=${chatId}`);
-    const data = await res.json();
-    if (data.error) {
-      alert(data.error);
-    } else {
-      setChats((prev) => {
-        const filtered = prev.filter((c) => c.id !== data.id);
-        return [...filtered, data];
-      });
-      setActiveChatId(data.id);
-    }
-  }
 
   useEffect(() => {
     const savedChats = localStorage.getItem("chatHistory");
